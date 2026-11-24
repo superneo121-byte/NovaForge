@@ -82,20 +82,31 @@ jobs:
           [ -f third_party/proot/src/cli/cli.c ] || printf 'int main(int argc, char **argv) { (void)argc; (void)argv; return 0; }\n' > third_party/proot/src/cli/cli.c
 
       - name: Build Debug APK
+        id: build_step
         working-directory: project
         run: |
           chmod +x gradlew
+          set +e
           ./gradlew assembleDebug --no-daemon > build.log 2>&1
           EXIT_CODE=$?
+          set -e
           if [ "$EXIT_CODE" -ne 0 ]; then
-            echo "=== CMAKELISTS LINES 65-115 ==="
-            nl -ba app/src/main/cpp/CMakeLists.txt | sed -n '65,115p' || true
-            echo "=== LAST 50 LINES OF BUILD LOG ==="
-            tail -n 50 build.log || true
+            echo "=== CMAKE & GRADLE ERRORS ==="
+            grep -nE "(CMake Error|Cannot find source file|No SOURCES given|FAILURE:|Execution failed|error:|Unresolved reference)" build.log | tail -n 30 || true
+            echo "=== CMAKELISTS LINES 85-105 ==="
+            nl -ba app/src/main/cpp/CMakeLists.txt | sed -n '85,105p' || true
             exit "$EXIT_CODE"
           fi
 
+      - name: Upload Failure Log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NovaForge-Build-Log
+          path: project/build.log
+
       - name: Upload APK Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: NovaForge-Android-APK
