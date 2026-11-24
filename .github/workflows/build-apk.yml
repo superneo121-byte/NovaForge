@@ -71,7 +71,7 @@ jobs:
             git clone --depth 1 https://github.com/termux/libandroid-shmem.git third_party/libandroid-shmem || true
           fi
 
-          if [ ! -f third_party/proot/src/cli/cli.c ]; then
+          if [ ! -d third_party/proot/src ]; then
             rm -rf third_party/proot
             git clone --depth 1 https://github.com/termux/proot.git third_party/proot || true
           fi
@@ -89,7 +89,11 @@ jobs:
           EXIT_CODE=${PIPESTATUS[0]}
           if [ "$EXIT_CODE" -ne 0 ]; then
             echo "=== FAILURE SUMMARY ==="
-            grep -E "(FAILURE:|What went wrong:|Execution failed|CMake Error|error:|Unresolved reference|Duplicate class)" build.log | tail -n 35 || true
+            grep -E "(FAILURE:|What went wrong:|Execution failed|CMake Error|Cannot find source file|No SOURCES given|error:|Unresolved reference|Duplicate class)" build.log | tail -n 35 || true
+            echo "=== CMAKELISTS AROUND LINE 94 ==="
+            nl -ba app/src/main/cpp/CMakeLists.txt | sed -n '65,115p' || true
+            echo "=== PROOT SRC FILES ==="
+            find third_party/proot/src -maxdepth 3 2>/dev/null | head -n 40 || true
             exit "$EXIT_CODE"
           fi
 
