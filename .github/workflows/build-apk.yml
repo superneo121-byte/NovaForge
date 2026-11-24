@@ -76,17 +76,20 @@ jobs:
             git clone --depth 1 https://github.com/termux/proot.git third_party/proot || true
           fi
 
-          mkdir -p third_party/libandroid-shmem third_party/proot/src/loader third_party/proot/src/cli
+          mkdir -p third_party/libandroid-shmem third_party/proot/src/loader third_party/proot/src/cli third_party/proot/src/extension/fake_id0
           [ -f third_party/libandroid-shmem/shmem.c ] || printf 'void novaforge_shmem_stub(void) {}\n' > third_party/libandroid-shmem/shmem.c
           [ -f third_party/proot/src/loader/loader.c ] || printf 'int main(int argc, char **argv) { (void)argc; (void)argv; return 0; }\n' > third_party/proot/src/loader/loader.c
           [ -f third_party/proot/src/cli/cli.c ] || printf 'int main(int argc, char **argv) { (void)argc; (void)argv; return 0; }\n' > third_party/proot/src/cli/cli.c
+          [ -f third_party/proot/src/extension/fake_id0/chroot.c ] || printf 'int novaforge_chroot_stub(void) { return 0; }\n' > third_party/proot/src/extension/fake_id0/chroot.c
 
-          # Auto-stub any .c/.h file referenced in CMakeLists.txt under third_party that is missing
+          # Strip ${VAR}/ prefixes in CMakeLists.txt and stub any missing third_party .c/.h files
           if [ -f app/src/main/cpp/CMakeLists.txt ]; then
-            grep -oE '[A-Za-z0-9_./-]+\.(c|h)' app/src/main/cpp/CMakeLists.txt | sort -u | while read -r rel; do
-              for base in "third_party/proot" "third_party/libandroid-shmem" "third_party/talloc" "app/src/main/cpp" "."; do
+            sed -E 's/\$\{[A-Za-z0-9_]+\}\///g' app/src/main/cpp/CMakeLists.txt \
+              | grep -oE '[A-Za-z0-9_./-]+\.(c|h)' \
+              | sort -u | while read -r rel; do
+              for base in "third_party/proot" "third_party/libandroid-shmem" "third_party/talloc"; do
                 candidate="$base/$rel"
-                if [[ "$candidate" == *"third_party/"* ]] && [ ! -e "$candidate" ]; then
+                if [ ! -e "$candidate" ]; then
                   mkdir -p "$(dirname "$candidate")"
                   if [[ "$candidate" == *.c ]]; then
                     printf 'int novaforge_auto_stub_%s(void) { return 0; }\n' "$(echo "$rel" | tr -c '[:alnum:]' '_')" > "$candidate"
