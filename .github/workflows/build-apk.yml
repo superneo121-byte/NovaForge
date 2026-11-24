@@ -109,7 +109,24 @@ jobs:
         working-directory: project
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          set +e
+          ./gradlew assembleDebug --no-daemon > build.log 2>&1
+          EXIT_CODE=$?
+          set -e
+          if [ "$EXIT_CODE" -ne 0 ]; then
+            echo "=== SPECIFIC COMPILER / LINKER / CMAKE ERRORS ==="
+            grep -E "(error:|undefined symbol|CMake Error|Cannot find source file|No SOURCES given|FAILURE:|What went wrong:)" build.log | grep -vE '^\s*at ' | tail -n 30 || true
+            echo "=== TAIL OF BUILD LOG ==="
+            tail -n 40 build.log || true
+            exit "$EXIT_CODE"
+          fi
+
+      - name: Upload Failure Log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NovaForge-Build-Log
+          path: project/build.log
 
       - name: Upload APK Artifact
         if: success()
