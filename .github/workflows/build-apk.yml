@@ -1,0 +1,63 @@
+name: Build NovaForge Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Unzip NovaForge archive
+        run: |
+          ZIP_FILE=$(ls *.zip 2>/dev/null | head -n 1)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "No .zip file found in repository root!"
+            ls -la
+            exit 1
+          fi
+          echo "Found archive: $ZIP_FILE"
+          unzip -q "$ZIP_FILE" -d extracted
+          if [ -d "extracted/NovaForge/app" ]; then
+            cp -r extracted/NovaForge/. project/
+          elif [ -f "extracted/build.gradle.kts" ] || [ -f "extracted/gradlew" ]; then
+            cp -r extracted/. project/
+          else
+            SUBDIR=$(find extracted -maxdepth 3 -name "build.gradle.kts" -printf "%h\n" | head -n 1)
+            cp -r "$SUBDIR"/. project/
+          fi
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Ensure Kotlin BOM alignment
+        working-directory: project
+        run: |
+          if [ -f app/build.gradle.kts ] && ! grep -q "kotlin-bom" app/build.gradle.kts; then
+            cat << 'EOF' >> app/build.gradle.kts
+
+            dependencies {
+                implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.8.22"))
+            }
+            EOF
+          fi
+
+      - name: Build Debug APK
+        working-directory: project
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NovaForge-Android-APK
+          path: project/app/build/outputs/apk/debug/app-debug.apk
