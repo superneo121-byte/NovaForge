@@ -91,10 +91,10 @@ jobs:
           EXIT_CODE=$?
           set -e
           if [ "$EXIT_CODE" -ne 0 ]; then
-            echo "=== CMAKE & GRADLE ERRORS ==="
-            grep -nE "(CMake Error|Cannot find source file|No SOURCES given|FAILURE:|Execution failed|error:|Unresolved reference)" build.log | tail -n 30 || true
-            echo "=== CMAKELISTS LINES 85-105 ==="
-            nl -ba app/src/main/cpp/CMakeLists.txt | sed -n '85,105p' || true
+            echo "=== CMAKELISTS LINES 1-94 ==="
+            nl -ba app/src/main/cpp/CMakeLists.txt | sed -n '1,94p' || true
+            echo "=== BUILD LOG LINES 135-155 ==="
+            sed -n '135,155p' build.log || true
             exit "$EXIT_CODE"
           fi
 
