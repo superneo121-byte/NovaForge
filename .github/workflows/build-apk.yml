@@ -88,10 +88,10 @@ jobs:
           ./gradlew assembleDebug --no-daemon > build.log 2>&1
           EXIT_CODE=$?
           if [ "$EXIT_CODE" -ne 0 ]; then
-            echo "=== CMAKELISTS AROUND LINE 94 ==="
+            echo "=== CMAKELISTS LINES 65-115 ==="
             nl -ba app/src/main/cpp/CMakeLists.txt | sed -n '65,115p' || true
-            echo "=== FAILURE SUMMARY ==="
-            grep -E "(FAILURE:|What went wrong:|Execution failed|CMake Error|Cannot find source file|No SOURCES given|error:|Unresolved reference|Duplicate class)" build.log | tail -n 35 || true
+            echo "=== LAST 50 LINES OF BUILD LOG ==="
+            tail -n 50 build.log || true
             exit "$EXIT_CODE"
           fi
 
