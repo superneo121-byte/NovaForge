@@ -23,6 +23,7 @@ jobs:
           fi
           echo "Found archive: $ZIP_FILE"
           unzip -q "$ZIP_FILE" -d extracted
+          mkdir -p project
           if [ -d "extracted/NovaForge/app" ]; then
             cp -r extracted/NovaForge/. project/
           elif [ -f "extracted/build.gradle.kts" ] || [ -f "extracted/gradlew" ]; then
@@ -42,12 +43,7 @@ jobs:
         working-directory: project
         run: |
           if [ -f app/build.gradle.kts ] && ! grep -q "kotlin-bom" app/build.gradle.kts; then
-            cat << 'EOF' >> app/build.gradle.kts
-
-            dependencies {
-                implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.8.22"))
-            }
-            EOF
+            printf '\ndependencies {\n    implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.8.22"))\n}\n' >> app/build.gradle.kts
           fi
 
       - name: Build Debug APK
