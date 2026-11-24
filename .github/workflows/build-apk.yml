@@ -85,15 +85,13 @@ jobs:
         working-directory: project
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon | tee build.log
-          EXIT_CODE=${PIPESTATUS[0]}
+          ./gradlew assembleDebug --no-daemon > build.log 2>&1
+          EXIT_CODE=$?
           if [ "$EXIT_CODE" -ne 0 ]; then
-            echo "=== FAILURE SUMMARY ==="
-            grep -E "(FAILURE:|What went wrong:|Execution failed|CMake Error|Cannot find source file|No SOURCES given|error:|Unresolved reference|Duplicate class)" build.log | tail -n 35 || true
             echo "=== CMAKELISTS AROUND LINE 94 ==="
             nl -ba app/src/main/cpp/CMakeLists.txt | sed -n '65,115p' || true
-            echo "=== PROOT SRC FILES ==="
-            find third_party/proot/src -maxdepth 3 2>/dev/null | head -n 40 || true
+            echo "=== FAILURE SUMMARY ==="
+            grep -E "(FAILURE:|What went wrong:|Execution failed|CMake Error|Cannot find source file|No SOURCES given|error:|Unresolved reference|Duplicate class)" build.log | tail -n 35 || true
             exit "$EXIT_CODE"
           fi
 
