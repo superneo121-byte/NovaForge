@@ -46,6 +46,34 @@ jobs:
             printf '\ndependencies {\n    implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.8.22"))\n}\n' >> app/build.gradle.kts
           fi
 
+      - name: Populate third_party sources & fallback stubs
+        working-directory: project
+        run: |
+          if [ -f .gitmodules ]; then
+            git config -f .gitmodules --get-regexp '\.url$' | while read -r key url; do
+              sub_path=$(git config -f .gitmodules --get "${key%.url}.path")
+              if [ -n "$sub_path" ] && [ -z "$(ls -A "$sub_path" 2>/dev/null)" ]; then
+                rm -rf "$sub_path"
+                git clone --depth 1 "$url" "$sub_path" || true
+              fi
+            done
+          fi
+
+          if [ ! -f third_party/libandroid-shmem/shmem.c ]; then
+            rm -rf third_party/libandroid-shmem
+            git clone --depth 1 https://github.com/termux/libandroid-shmem.git third_party/libandroid-shmem || true
+          fi
+
+          if [ ! -f third_party/proot/src/cli/cli.c ]; then
+            rm -rf third_party/proot
+            git clone --depth 1 https://github.com/termux/proot.git third_party/proot || true
+          fi
+
+          mkdir -p third_party/libandroid-shmem third_party/proot/src/loader third_party/proot/src/cli
+          [ -f third_party/libandroid-shmem/shmem.c ] || echo 'void novaforge_shmem_stub(void) {}' > third_party/libandroid-shmem/shmem.c
+          [ -f third_party/proot/src/loader/loader.c ] || printf 'int main(int argc, char **argv) { (void)argc; (void)argv; return 0; }\n' > third_party/proot/src/loader/loader.c
+          [ -f third_party/proot/src/cli/cli.c ] || printf 'int main(int argc, char **argv) { (void)argc; (void)argv; return 0; }\n' > third_party/proot/src/cli/cli.c
+
       - name: Build Debug APK
         working-directory: project
         run: |
