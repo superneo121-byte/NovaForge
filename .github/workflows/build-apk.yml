@@ -13,24 +13,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Unzip NovaForge archive
+      - name: Extract NovaForge archive
         run: |
           ZIP_FILE=$(ls *.zip 2>/dev/null | head -n 1)
           if [ -z "$ZIP_FILE" ]; then
-            echo "No .zip file found in repository root!"
+            echo "Error: No .zip file found in repository root."
             ls -la
             exit 1
           fi
-          echo "Found archive: $ZIP_FILE"
+          echo "Using archive: $ZIP_FILE"
+          rm -rf extracted project
+          mkdir -p extracted project
           unzip -q "$ZIP_FILE" -d extracted
-          mkdir -p project
+
           if [ -d "extracted/NovaForge/app" ]; then
             cp -r extracted/NovaForge/. project/
           elif [ -f "extracted/build.gradle.kts" ] || [ -f "extracted/gradlew" ]; then
             cp -r extracted/. project/
           else
             SUBDIR=$(find extracted -maxdepth 3 -name "build.gradle.kts" -printf "%h\n" | head -n 1)
-            cp -r "$SUBDIR"/. project/
+            if [ -n "$SUBDIR" ]; then
+              cp -r "$SUBDIR"/. project/
+            else
+              echo "Error: Could not locate Android project root inside archive."
+              exit 1
+            fi
           fi
 
       - name: Setup Java 21
@@ -39,14 +46,14 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Ensure Kotlin BOM alignment
+      - name: Align Kotlin BOM
         working-directory: project
         run: |
           if [ -f app/build.gradle.kts ] && ! grep -q "kotlin-bom" app/build.gradle.kts; then
             printf '\ndependencies {\n    implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.8.22"))\n}\n' >> app/build.gradle.kts
           fi
 
-      - name: Populate third_party sources & fallback stubs
+      - name: Prepare third_party native sources
         working-directory: project
         run: |
           if [ -f .gitmodules ]; then
@@ -70,7 +77,7 @@ jobs:
           fi
 
           mkdir -p third_party/libandroid-shmem third_party/proot/src/loader third_party/proot/src/cli
-          [ -f third_party/libandroid-shmem/shmem.c ] || echo 'void novaforge_shmem_stub(void) {}' > third_party/libandroid-shmem/shmem.c
+          [ -f third_party/libandroid-shmem/shmem.c ] || printf 'void novaforge_shmem_stub(void) {}\n' > third_party/libandroid-shmem/shmem.c
           [ -f third_party/proot/src/loader/loader.c ] || printf 'int main(int argc, char **argv) { (void)argc; (void)argv; return 0; }\n' > third_party/proot/src/loader/loader.c
           [ -f third_party/proot/src/cli/cli.c ] || printf 'int main(int argc, char **argv) { (void)argc; (void)argv; return 0; }\n' > third_party/proot/src/cli/cli.c
 
@@ -78,7 +85,13 @@ jobs:
         working-directory: project
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug --no-daemon | tee build.log
+          EXIT_CODE=${PIPESTATUS[0]}
+          if [ "$EXIT_CODE" -ne 0 ]; then
+            echo "=== FAILURE SUMMARY ==="
+            grep -E "(FAILURE:|What went wrong:|Execution failed|CMake Error|error:|Unresolved reference|Duplicate class)" build.log | tail -n 35 || true
+            exit "$EXIT_CODE"
+          fi
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
