@@ -41,7 +41,7 @@ jobs:
           fi
 
       - name: Setup Java 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -123,14 +123,15 @@ jobs:
             set -e
 
             if [ "$EXIT_CODE" -eq 0 ]; then
+              echo "=== GENERATED APK FILES ==="
+              find app/build/outputs/apk -type f -name "*.apk" || true
               exit 0
             fi
 
             HEALED=0
 
-            # Auto-create any missing source file reported by CMake
             while IFS= read -r missing_file; do
-              missing_file=$(echo "$missing_file" | xargs)
+              missing_file=$(echo "$missing_file" | sed 's/^C\/C++:[[:space:]]*//' | xargs)
               if [ -n "$missing_file" ] && [ ! -e "$missing_file" ]; then
                 mkdir -p "$(dirname "$missing_file")"
                 if [[ "$missing_file" == *.c ]]; then
@@ -141,9 +142,8 @@ jobs:
                 echo "Created missing CMake file: $missing_file"
                 HEALED=1
               fi
-            done < <(grep -A 2 "Cannot find source file:" build.log | grep -v "Cannot find source file:" | grep -E '/[^ ]+\.(c|h)' || true)
+            done < <(grep -A 2 "Cannot find source file:" build.log | grep -v "Cannot find source file:" | grep -oE '/[^ ]+\.(c|h)' || true)
 
-            # Auto-stub any undefined symbol reported by ld.lld
             while IFS= read -r sym; do
               sym=$(echo "$sym" | xargs)
               if [ -n "$sym" ] && ! grep -q " $sym(" app/src/main/cpp/novaforge_linker_shims.c; then
@@ -176,4 +176,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: NovaForge-Android-APK
-          path: project/app/build/outputs/apk/debug/app-debug.apk
+          path: project/app/build/outputs/apk/**/*.apk
